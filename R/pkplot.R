@@ -29,7 +29,9 @@ pkplot <- function(
                      legend,
                      greyscale,
                      log_y,
-                     plotTitle)
+                     plotTitle,
+                     t_start=0,
+                     t_end=24)
   
   #Import data
   pkData <- read_pksim(filePath = filePath)
