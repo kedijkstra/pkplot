@@ -10,6 +10,7 @@ source("add_title.R")
 source("argument_validator.R")
 source("set_font.R")
 source("set_theme.R")
+source("log_scale.R")
 
 pkplot <- function(
     filePath,
@@ -17,6 +18,7 @@ pkplot <- function(
     simType,
     legend=TRUE,
     greyscale=FALSE,
+    log_y=FALSE,
     plotTitle=""
     ) {
   
@@ -26,6 +28,7 @@ pkplot <- function(
                      simType,
                      legend,
                      greyscale,
+                     log_y,
                      plotTitle)
   
   #Import data
@@ -43,6 +46,11 @@ pkplot <- function(
     
   }else if (simType == "population") {
     p <- population_plot(plot_specification, greyscale)
+  }
+  
+  #Optional log scaling
+  if (log_y){
+    p <- log_scale(p)
   }
   
   p <- set_theme(p)

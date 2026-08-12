@@ -3,6 +3,7 @@ argument_validator <- function(filePath,
                                simType,
                                legend,
                                greyscale,
+                               log_y,
                                plotTitle){
   sim_types <- c("population", "individual")
   checkmate::expect_subset(simType, sim_types, 
@@ -20,4 +21,6 @@ argument_validator <- function(filePath,
                            empty.ok = FALSE, info = "invalid legend flag")
   checkmate::expect_subset(greyscale, bools, 
                            empty.ok = FALSE, info = "invalid greyscale flag")
+  checkmate::expect_subset(log_y, bools, 
+                           empty.ok = FALSE, info = "invalid log_y flag")
 }
