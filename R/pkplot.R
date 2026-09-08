@@ -19,7 +19,9 @@ pkplot <- function(
     legend=TRUE,
     greyscale=FALSE,
     log_y=FALSE,
-    plotTitle=""
+    plotTitle="",
+    yLabel = "",
+    xLabel = ""
     ) {
   
   #Validate arguments
@@ -44,10 +46,10 @@ pkplot <- function(
   
   #Construct individual plot
   if (simType == "individual") {
-    p <- individual_plot(plot_specification, greyscale)
+    p <- individual_plot(plot_specification, greyscale, yLabel, xLabel)
     
   }else if (simType == "population") {
-    p <- population_plot(plot_specification, greyscale)
+    p <- population_plot(plot_specification, greyscale, yLabel, xLabel)
   }
   
   #Optional log scaling
@@ -69,7 +71,8 @@ pkplot <- function(
   }
   
   p <- set_font(p)
-  
+
+  print(p)
   save_plot(outputPath, p, simType)
   
 }

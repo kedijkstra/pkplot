@@ -1,4 +1,4 @@
-population_plot <- function(plot_specification, greyscale) {
+population_plot <- function(plot_specification, greyscale, yLabel, xLabel) {
   
   p <- ggplot2::ggplot()
   
@@ -8,6 +8,28 @@ population_plot <- function(plot_specification, greyscale) {
     
     layer <- plot_specification$layers[[i]]
     df <- layer$dataset
+    
+    layer <- plot_specification$layers[[i]]
+    df <- layer$dataset
+    
+    # Find the column containing "Concentration"
+    filterColumn <- grep("^Concentration", names(df), value = TRUE, ignore.case = TRUE)
+    
+    if (length(filterColumn) > 0) {
+      
+      n_before <- nrow(df)
+      
+      # Keep rows from the first non-zero concentration onwards
+      firstNonZero <- which(df[[filterColumn]] != 0)[1]
+      
+      if (!is.na(firstNonZero)) {
+        df <- df[firstNonZero:nrow(df), ]
+      }
+      
+      n_after <- nrow(df)
+
+      print(paste("Rows removed:", n_before - n_after))
+    }
     
     # Find columns
     timeColumn <- grep("^Time", names(df), value = TRUE)
@@ -20,11 +42,8 @@ population_plot <- function(plot_specification, greyscale) {
     df$group <- df[[curveColumn]][1]
     
     unitList <- strsplit(concentrationColumn, " ")[[1]]
-    yLabel <- paste("Concentration", 
-                    unitList[length(unitList)],
-                    sep=" ")
     p <- p +
-      ggplot2::labs(y = yLabel)
+      ggplot2::labs(y = yLabel, x = xLabel)
     
     if (layer$geom == "line") {
       if (greyscale){
@@ -90,6 +109,7 @@ population_plot <- function(plot_specification, greyscale) {
     
     } else if (layer$geom == "point") {
       
+      # Add observed data points
       p <- p +
         ggplot2::geom_point(
           data = df,
@@ -100,7 +120,25 @@ population_plot <- function(plot_specification, greyscale) {
           ),
           colour = "black",
           size = 2
-        ) 
+        )
+    }
+    
+    # Add error bars for observed/measurement data if present
+    if (grepl("Measurement", df$group[1], ignore.case = TRUE) &&
+        length(lowerColumn) > 0 &&
+        length(upperColumn) > 0) {
+      
+      p <- p +
+        ggplot2::geom_errorbar(
+          data = df,
+          ggplot2::aes(
+            x = .data[[timeColumn]],
+            ymin = .data[[lowerColumn]],
+            ymax = .data[[upperColumn]]
+          ),
+          width = 0.1,
+          colour = "black"
+        )
     }
   }
   
@@ -111,6 +149,6 @@ population_plot <- function(plot_specification, greyscale) {
         values = grey_colors
       )
   }
-
+  
   return(p)
 }
