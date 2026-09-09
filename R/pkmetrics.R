@@ -37,6 +37,7 @@ pkmetrics <- function(filePath,
       
       # Find columns
       timeColumn <- grep("^Time", names(df), value = TRUE)
+      concentrationColumn <- grep("^Concentration", names(df), value = TRUE)
       
       stopifnot(length(timeColumn) == 1) #TODO also add in other scripts
       stopifnot(length(concentrationColumn) == 1)
