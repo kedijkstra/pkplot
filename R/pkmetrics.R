@@ -42,7 +42,7 @@ pkmetrics <- function(filePath,
       stopifnot(length(timeColumn) == 1) #TODO also add in other scripts
       stopifnot(length(concentrationColumn) == 1)
       
-      measurementColumns <- colnames(df)[!startsWith(colnames(df), "Time")] <- colnames(df)[!startsWith(colnames(df), "Time")]
+      measurementColumns <- colnames(df)[!startsWith(colnames(df), "Time")] 
       
       for (mc in measurementColumns){
         metrics <- compute_metrics(df[[mc]], df[[timeColumn]], c(t_start, t_end))
