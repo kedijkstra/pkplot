@@ -12,7 +12,8 @@ read_pksim <- function(filePath){
     # Read sheet normally first to obtain column names
     d <- readxl::read_excel(
       filePath,
-      sheet = sheet
+      sheet = sheet,
+      n_max = 0
     )
     
     # Determine column types
