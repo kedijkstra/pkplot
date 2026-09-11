@@ -1,84 +1,66 @@
-individual_plot <- function(plot_specification, greyscale, yLabel, xLabel) {
+individual_plot <- function(
+    plot_specification,
+    greyscale,
+    yLabel,
+    xLabel
+) {
   
   p <- ggplot2::ggplot()
+  
+  grey_colors <- c("grey70", "grey50", "grey30", "grey10") # TODO: automatic generate
+  
+  # Store maximum x-value
+  x_max <- 0
   
   for (i in seq_along(plot_specification$layers)) {
     
     layer <- plot_specification$layers[[i]]
     df <- layer$dataset
     
-    # Find the column containing "Concentration"
-    filterColumn <- grep(
-      "^.*Concentration",
+    # Find columns
+    timeColumn <- grep("^Time", names(df), value = TRUE)
+    concentrationColumn <- grep(
+      "^Concentration",
       names(df),
-      value = TRUE,
-      ignore.case = TRUE
+      value = TRUE
     )
+    lowerColumn <- grep("^Lower", names(df), value = TRUE)
+    upperColumn <- grep("^Upper", names(df), value = TRUE)
+    curveColumn <- grep("^Curve Caption", names(df), value = TRUE)
     
-    if (length(filterColumn) == 1) {
-      
-      n_before <- nrow(df)
-      
-      # Keep rows from the first non-zero concentration onwards
-      firstNonZero <- which(df[[filterColumn]] != 0)[1]
-      
-      if (!is.na(firstNonZero) && firstNonZero > 1) {
-        df <- df[firstNonZero:nrow(df), , drop = FALSE]
-      }
-      
-      n_after <- nrow(df)
-      
-      print(paste("Rows removed:", n_before - n_after))
+    # Determine maximum x-value
+    if (length(timeColumn) > 0) {
+      x_max <- max(
+        x_max,
+        max(df[[timeColumn]], na.rm = TRUE)
+      )
     }
     
-    # Find columns
-    timeColumn <- grep(
-      "^Time",
-      names(df),
-      value = TRUE,
-      ignore.case = TRUE
-    )
+    # Use curve caption as group name
+    if (length(curveColumn) > 0) {
+      df$group <- df[[curveColumn]][1]
+    } else {
+      df$group <- paste0("Layer ", i)
+    }
     
-    # All columns except Time and Error
-    measurementColumns <- colnames(df)[
-      !startsWith(colnames(df), "Time") &
-        !startsWith(colnames(df), "Error")
-    ]
-    
-    # Identify Error column separately
-    errorColumn <- grep(
-      "^Error",
-      names(df),
-      value = TRUE,
-      ignore.case = TRUE
-    )
-    
-    # Apply user-defined axis labels
     p <- p +
       ggplot2::labs(
         y = yLabel,
         x = xLabel
       )
     
-    # Predicted data
+    # Add simulation line
     if (layer$geom == "line") {
-      
-      df_long <- tidyr::pivot_longer(
-        df,
-        cols = dplyr::all_of(measurementColumns),
-        names_to = "measurement",
-        values_to = "value"
-      )
       
       if (greyscale) {
         
         p <- p +
           ggplot2::geom_line(
-            data = df_long,
+            data = df,
             ggplot2::aes(
               x = .data[[timeColumn]],
-              y = .data[["value"]],
-              linetype = measurement
+              y = .data[[concentrationColumn]],
+              linetype = group
             ),
             linewidth = 1,
             lineend = "round",
@@ -90,11 +72,11 @@ individual_plot <- function(plot_specification, greyscale, yLabel, xLabel) {
         
         p <- p +
           ggplot2::geom_line(
-            data = df_long,
+            data = df,
             ggplot2::aes(
               x = .data[[timeColumn]],
-              y = .data[["value"]],
-              color = measurement
+              y = .data[[concentrationColumn]],
+              colour = group
             ),
             linewidth = 1,
             lineend = "round",
@@ -104,40 +86,64 @@ individual_plot <- function(plot_specification, greyscale, yLabel, xLabel) {
       
     } else if (layer$geom == "point") {
       
-      # Use the measurement column name as the legend label
-      df$.measurement <- measurementColumns[1]
-      
+      # Add observed data points
       p <- p +
         ggplot2::geom_point(
           data = df,
           ggplot2::aes(
             x = .data[[timeColumn]],
-            y = .data[[measurementColumns[1]]],
-            shape = .measurement
+            y = .data[[concentrationColumn]],
+            shape = group
           ),
           colour = "black",
           size = 2
         )
+      
+      # Add error bars for observed/measurement data if present
+      if (
+        grepl("Measurement", df$group[1], ignore.case = TRUE) &&
+        length(lowerColumn) > 0 &&
+        length(upperColumn) > 0
+      ) {
+        
+        p <- p +
+          ggplot2::geom_errorbar(
+            data = df,
+            ggplot2::aes(
+              x = .data[[timeColumn]],
+              ymin = .data[[lowerColumn]],
+              ymax = .data[[upperColumn]]
+            ),
+            width = 0.1,
+            colour = "black"
+          )
+      }
     }
+  }
+  
+  # Set x-axis maximum to the highest x-value
+  # and make sure the maximum is also a tick mark
+  if (is.finite(x_max) && x_max > 0) {
     
-    # Add error bars for observed data if available
-    if (length(errorColumn) == 1 && length(measurementColumns) == 1) {
-      
-      df$lower <- df[[measurementColumns[1]]] - df[[errorColumn]]
-      df$upper <- df[[measurementColumns[1]]] + df[[errorColumn]]
-      
-      p <- p +
-        ggplot2::geom_errorbar(
-          data = df,
-          ggplot2::aes(
-            x = .data[[timeColumn]],
-            ymin = .data[["lower"]],
-            ymax = .data[["upper"]]
-          ),
-          width = 0.1,
-          colour = "black"
-        )
-    }
+    x_breaks <- scales::breaks_pretty(n = 6)(c(0, x_max))
+    
+    # Make sure the maximum value is included as a tick
+    x_breaks <- sort(unique(c(x_breaks, x_max)))
+    
+    p <- p +
+      ggplot2::scale_x_continuous(
+        limits = c(0, x_max),
+        breaks = x_breaks,
+        expand = ggplot2::expansion(mult = c(0, 0))
+      )
+  }
+  
+  # Add the fill scale ONLY ONCE
+  if (greyscale) {
+    p <- p +
+      ggplot2::scale_fill_manual(
+        values = grey_colors
+      )
   }
   
   return(p)
