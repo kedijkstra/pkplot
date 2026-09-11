@@ -1,16 +1,36 @@
 read_pksim <- function(filePath){
-  #Obtain sheets
+  
+  # Obtain sheets
   sheets <- readxl::excel_sheets(filePath)
   
-  #Empty list
+  # Empty list
   pkData <- list()
   
-  #Loop over sheets
+  # Loop over sheets
   for (sheet in sheets){
-    #Read sheet
-    d <- readxl::read_excel(filePath, sheet = sheet)
     
-    #Store sheet as dataframe in list
+    # Read sheet normally first to obtain column names
+    d <- readxl::read_excel(
+      filePath,
+      sheet = sheet,
+      n_max = 0
+    )
+    
+    # Determine column types
+    col_types <- ifelse(
+      names(d) %in% c("Pane Caption", "Curve Caption"),
+      "text",
+      "numeric"
+    )
+    
+    # Read sheet again with specified column types
+    d <- readxl::read_excel(
+      filePath,
+      sheet = sheet,
+      col_types = col_types
+    )
+    
+    # Store sheet as dataframe in list
     pkData[[sheet]] <- d
   }
   
