@@ -7,8 +7,6 @@ individual_plot <- function(
   
   p <- ggplot2::ggplot()
   
-  grey_colors <- c("grey70", "grey50", "grey30", "grey10") # TODO: automatic generate
-  
   # Store maximum x-value
   x_max <- 0
   
@@ -17,117 +15,151 @@ individual_plot <- function(
     layer <- plot_specification$layers[[i]]
     df <- layer$dataset
     
-    # Find columns
-    timeColumn <- grep("^Time", names(df), value = TRUE)
-    concentrationColumn <- grep(
-      "^Concentration",
+    # Find Time column
+    timeColumn <- grep(
+      "^Time",
       names(df),
-      value = TRUE
+      value = TRUE,
+      ignore.case = TRUE
     )
-    lowerColumn <- grep("^Lower", names(df), value = TRUE)
-    upperColumn <- grep("^Upper", names(df), value = TRUE)
-    curveColumn <- grep("^Curve Caption", names(df), value = TRUE)
     
-    # Determine maximum x-value
-    if (length(timeColumn) > 0) {
-      x_max <- max(
-        x_max,
-        max(df[[timeColumn]], na.rm = TRUE)
-      )
-    }
-    
-    # Use curve caption as group name
-    if (length(curveColumn) > 0) {
-      df$group <- df[[curveColumn]][1]
-    } else {
-      df$group <- paste0("Layer ", i)
-    }
-    
-    p <- p +
-      ggplot2::labs(
-        y = yLabel,
-        x = xLabel
-      )
-    
-    # Add simulation line
+    # Simulation
     if (layer$geom == "line") {
       
-      if (greyscale) {
-        
-        p <- p +
-          ggplot2::geom_line(
-            data = df,
-            ggplot2::aes(
-              x = .data[[timeColumn]],
-              y = .data[[concentrationColumn]],
-              linetype = group
-            ),
-            linewidth = 1,
-            lineend = "round",
-            linejoin = "round",
-            colour = "black"
-          )
-        
-      } else {
-        
-        p <- p +
-          ggplot2::geom_line(
-            data = df,
-            ggplot2::aes(
-              x = .data[[timeColumn]],
-              y = .data[[concentrationColumn]],
-              colour = group
-            ),
-            linewidth = 1,
-            lineend = "round",
-            linejoin = "round"
-          )
-      }
+      concentrationColumn <- grep(
+        "Concentration",
+        names(df),
+        value = TRUE,
+        ignore.case = TRUE
+      )
       
-    } else if (layer$geom == "point") {
-      
-      # Add observed data points
-      p <- p +
-        ggplot2::geom_point(
-          data = df,
-          ggplot2::aes(
-            x = .data[[timeColumn]],
-            y = .data[[concentrationColumn]],
-            shape = group
-          ),
-          colour = "black",
-          size = 2
+      if (length(timeColumn) > 0 && length(concentrationColumn) > 0) {
+        
+        # Put all concentration columns into long format
+        df_long <- tidyr::pivot_longer(
+          df,
+          cols = dplyr::all_of(concentrationColumn),
+          names_to = "measurement",
+          values_to = "value"
         )
+        
+        if (greyscale) {
+          
+          p <- p +
+            ggplot2::geom_line(
+              data = df_long,
+              ggplot2::aes(
+                x = .data[[timeColumn[1]]],
+                y = .data[["value"]],
+                linetype = measurement
+              ),
+              linewidth = 1,
+              lineend = "round",
+              linejoin = "round",
+              colour = "black"
+            )
+          
+        } else {
+          
+          p <- p +
+            ggplot2::geom_line(
+              data = df_long,
+              ggplot2::aes(
+                x = .data[[timeColumn[1]]],
+                y = .data[["value"]],
+                color = measurement
+              ),
+              linewidth = 1,
+              lineend = "round",
+              linejoin = "round"
+            )
+        }
+        
+        # Update maximum x-value
+        x_max <- max(
+          x_max,
+          max(df[[timeColumn[1]]], na.rm = TRUE)
+        )
+      }
+    }
+    
+    # Observed data
+    else if (layer$geom == "point") {
       
-      # Add error bars for observed/measurement data if present
+      measurementColumn <- grep(
+        "Measurement",
+        names(df),
+        value = TRUE,
+        ignore.case = TRUE
+      )
+      
+      errorColumn <- grep(
+        "^Error",
+        names(df),
+        value = TRUE,
+        ignore.case = TRUE
+      )
+      
       if (
-        grepl("Measurement", df$group[1], ignore.case = TRUE) &&
-        length(lowerColumn) > 0 &&
-        length(upperColumn) > 0
+        length(timeColumn) > 0 &&
+        length(measurementColumn) > 0
       ) {
         
+        # Use measurement column name as legend label
+        df$.measurement <- measurementColumn[1]
+        
+        # Observed points
         p <- p +
-          ggplot2::geom_errorbar(
+          ggplot2::geom_point(
             data = df,
             ggplot2::aes(
-              x = .data[[timeColumn]],
-              ymin = .data[[lowerColumn]],
-              ymax = .data[[upperColumn]]
+              x = .data[[timeColumn[1]]],
+              y = .data[[measurementColumn[1]]],
+              shape = .measurement
             ),
-            width = 0.1,
-            colour = "black"
+            colour = "black",
+            size = 2
           )
+        
+        # Error bars: Measurement +/- Error
+        if (length(errorColumn) > 0) {
+          
+          p <- p +
+            ggplot2::geom_errorbar(
+              data = df,
+              ggplot2::aes(
+                x = .data[[timeColumn[1]]],
+                ymin = .data[[measurementColumn[1]]] -
+                  .data[[errorColumn[1]]],
+                ymax = .data[[measurementColumn[1]]] +
+                  .data[[errorColumn[1]]]
+              ),
+              width = 0.1,
+              colour = "black"
+            )
+        }
+        
+        # Update maximum x-value
+        x_max <- max(
+          x_max,
+          max(df[[timeColumn[1]]], na.rm = TRUE)
+        )
       }
     }
   }
   
-  # Set x-axis maximum to the highest x-value
-  # and make sure the maximum is also a tick mark
+  # Labels
+  p <- p +
+    ggplot2::labs(
+      y = yLabel,
+      x = xLabel
+    )
+  
+  # Set x-axis maximum and make it a tick
   if (is.finite(x_max) && x_max > 0) {
     
     x_breaks <- scales::breaks_pretty(n = 6)(c(0, x_max))
     
-    # Make sure the maximum value is included as a tick
     x_breaks <- sort(unique(c(x_breaks, x_max)))
     
     p <- p +
@@ -135,14 +167,6 @@ individual_plot <- function(
         limits = c(0, x_max),
         breaks = x_breaks,
         expand = ggplot2::expansion(mult = c(0, 0))
-      )
-  }
-  
-  # Add the fill scale ONLY ONCE
-  if (greyscale) {
-    p <- p +
-      ggplot2::scale_fill_manual(
-        values = grey_colors
       )
   }
   
